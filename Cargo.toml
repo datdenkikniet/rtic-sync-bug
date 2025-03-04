@@ -1,0 +1,55 @@
+[package]
+name = "rtic-sync-bug-stm32f4"
+version = "0.1.0"
+authors = ["Guinea Wheek <guineawheek@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+cortex-m-rt = "0.7.3"
+defmt-rtt = "0.4.0"
+embedded-hal = "1.0.0"
+embedded-hal-async = "1.0.0"
+defmt = { version = "0.3.10", default-features = false, features = ["avoid-default-panic", "encoding-rzcobs"] }
+fugit = { version = "0.3.6" }
+
+rtic = { version = "2.1.2", features = ["thumbv7-backend"] }
+rtic-macros = { version = "2.1.2", features = ["cortex-m-basepri"] }
+rtic-sync = { version = "1.3", features = ["defmt-03"]}
+rtic-time = { version = "1.3.0", features = []}
+rtic-monotonics = { version = "2", features = ["cortex-m-systick", "systick-64bit"] }
+cortex-m = { version = "0.7.7", features = ["critical-section-single-core", "inline-asm"]}
+
+panic-probe = { version = "0.3.1", features = ["print-defmt"]}
+critical-section = "1.2.0"
+
+[features]
+default = ["nucleo-f411"]
+nucleo-f411 = ["stm32f4xx-hal/stm32f411"]
+
+[dependencies.stm32f4xx-hal]
+version = "0.20.0"
+features = ["rtic2", "defmt"]
+
+
+[[bin]]
+name = "rtic-sync-bug-stm32f4"
+test = false
+bench = false
+
+[workspace]
+resolver="2"
+
+[profile.dev]
+opt-level = "z"
+codegen-units = 1
+debug = true
+lto = true
+panic = "unwind"
+
+[profile.release]
+overflow-checks = false
+opt-level = "z" # optimize for size
+codegen-units = 1 # better optimizations
+debug = true      # symbols are nice and they don't increase the size on Flash
+lto = true        # better optimizations
+panic = "abort"
