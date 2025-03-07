@@ -11,16 +11,20 @@ use rtic_monotonics::systick_monotonic;
 use rtic_sync::channel::{Receiver, Sender};
 use rtic_sync::make_channel;
 use rtic_sync::portable_atomic::{AtomicUsize, Ordering};
-use stm32f4xx_hal::pac;
-use stm32f4xx_hal::{gpio, prelude::*};
+use stm32f7xx_hal::pac;
+use stm32f7xx_hal::prelude::*;
 
-#[app(device = pac, peripherals = true, dispatchers = [RTC_WKUP, SDIO, USART1, USART2, I2C1_ER, I2C1_EV])]
+#[app(device = pac, peripherals = true, dispatchers = [RTC_WKUP, USART1, USART2, I2C1_ER, I2C1_EV])]
 mod app {
-    use stm32f4xx_hal::{gpio::PinState, pac::TIM2, timer};
+    use stm32f7xx_hal::{
+        pac::TIM2,
+        rcc::{HSEClock, HSEClockMode},
+        timer,
+    };
 
     use crate::*;
 
-    systick_monotonic!(Mono, 10000);
+    systick_monotonic!(Mono, 1000);
 
     pub type MsgOut = Sender<'static, [u8; 20], 32>;
     pub type MsgIn = Receiver<'static, [u8; 20], 32>;
@@ -32,7 +36,6 @@ mod app {
 
     #[local]
     pub struct Local {
-        pub led: gpio::Pin<'A', 5, gpio::Output>,
         pub timer: timer::Counter<TIM2, 1000000>,
         pub semaphore_recv: SemaphoreRecv,
     }
@@ -40,26 +43,12 @@ mod app {
     #[init()]
     fn init(cx: init::Context) -> (Shared, Local) {
         let rcc = cx.device.RCC.constrain();
-        let mut scb = cx.core.SCB;
-        scb.enable(cortex_m::peripheral::scb::Exception::BusFault);
-        scb.enable(cortex_m::peripheral::scb::Exception::UsageFault);
-        scb.enable(cortex_m::peripheral::scb::Exception::MemoryManagement);
-
-        let dbg = cx.device.DBGMCU;
-        dbg.cr.modify(|_, w| {
-            w.dbg_sleep()
-                .set_bit()
-                .dbg_stop()
-                .set_bit()
-                .dbg_standby()
-                .set_bit()
-        });
-
-        let clocks = rcc.cfgr.sysclk(100u32.MHz()).hclk(100.MHz()).freeze();
-
-        // Setup LED
-        let gpioa = cx.device.GPIOA.split();
-        let led = gpioa.pa5.into_push_pull_output_in_state(PinState::High);
+        let clocks = rcc
+            .cfgr
+            .sysclk(96u32.MHz())
+            .hclk(96u32.MHz())
+            .hse(HSEClock::new(8.MHz(), HSEClockMode::Bypass))
+            .freeze();
 
         // the JTAG bits are write-only (stupid)
         let (spam_tx_send, spam_tx_recv) = make_channel!([u8; 20], 32);
@@ -73,12 +62,10 @@ mod app {
         Mono::start(cx.core.SYST, clocks.sysclk().to_Hz());
         spam_queuer::spawn(spam_tx_recv, semaphore_send).ok();
         spam_sender::spawn(spam_tx_send.clone()).ok();
-        blink::spawn().ok();
 
         (
             Shared {},
             Local {
-                led,
                 timer,
                 semaphore_recv,
             },
@@ -118,34 +105,10 @@ mod app {
     ) {
         while let Ok(msg) = outbound_queue.recv().await {
             // we enforce a timeout here so the outbound message handler won't hang if the timer irq never clears enough
-            if msg[0] < 128 {
-                defmt::println!("Received a message: {}", msg[0]);
-            }
+            defmt::info!("Received a message: {}", msg[0]);
             Mono::timeout_after(4_u64.millis(), semaphore_send.send(0u8))
                 .await
                 .ok();
-        }
-    }
-
-    #[task(priority = 1, local = [led])]
-    async fn blink(cx: blink::Context) {
-        // this is an led blinker
-        let mut state_1_hz = 0u32;
-        let duration = 90909_u64.micros();
-        loop {
-            let state_1_hz_high = state_1_hz > 4;
-            if state_1_hz_high {
-                cx.local.led.set_high();
-            } else {
-                cx.local.led.set_low();
-            }
-
-            state_1_hz = if state_1_hz >= 9 {
-                0
-            } else {
-                state_1_hz.wrapping_add(1)
-            };
-            Mono::delay(duration).await;
         }
     }
 

@@ -23,12 +23,19 @@ panic-probe = { version = "0.3.1", features = ["print-defmt"]}
 critical-section = "1.2.0"
 
 [features]
-default = ["nucleo-f411"]
-nucleo-f411 = ["stm32f4xx-hal/stm32f411"]
+default = ["nucleo-f767"]
+nucleo-f411 = [ "stm32f4xx-hal", "stm32f4xx-hal/stm32f411" ]
+nucleo-f767 = [ "stm32f7xx-hal", "stm32f7xx-hal/stm32f767" ]
 
 [dependencies.stm32f4xx-hal]
 version = "0.20.0"
 features = ["rtic2", "defmt"]
+optional = true
+
+[dependencies.stm32f7xx-hal]
+version = "0.8.0"
+features = ["rtic-monotonic", "rtic"]
+optional = true
 
 
 [[bin]]

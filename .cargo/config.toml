@@ -1,5 +1,5 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
-runner = "probe-rs run --chip STM32F411RE"
+runner = "probe-rs run --chip STM32F767ZI"
 
 rustflags = [
   "-C", "linker=flip-link",
@@ -29,4 +29,4 @@ target = "thumbv7em-none-eabihf"
 
 [env]
 DEFMT_LOG = "info"
-CHIPSERIE = "stm32f411"
+CHIPSERIE = "stm32f746"
