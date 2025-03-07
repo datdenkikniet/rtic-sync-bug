@@ -14,17 +14,18 @@ use rtic_sync::portable_atomic::{AtomicUsize, Ordering};
 use stm32f7xx_hal::pac;
 use stm32f7xx_hal::prelude::*;
 
-#[app(device = pac, peripherals = true, dispatchers = [RTC_WKUP, USART1, USART2, I2C1_ER, I2C1_EV])]
+#[app(device = pac, peripherals = true, dispatchers = [SPI1, SPI2, SPI3, SPI4])]
 mod app {
+    use fugit::Duration;
     use stm32f7xx_hal::{
-        pac::TIM2,
+        pac::TIM4,
         rcc::{HSEClock, HSEClockMode},
         timer,
     };
 
     use crate::*;
 
-    systick_monotonic!(Mono, 1000);
+    systick_monotonic!(Mono, 1_000);
 
     pub type MsgOut = Sender<'static, [u8; 20], 32>;
     pub type MsgIn = Receiver<'static, [u8; 20], 32>;
@@ -36,7 +37,7 @@ mod app {
 
     #[local]
     pub struct Local {
-        pub timer: timer::Counter<TIM2, 1000000>,
+        // pub timer: timer::Counter<TIM4, 1000000>,
         pub semaphore_recv: SemaphoreRecv,
     }
 
@@ -54,40 +55,35 @@ mod app {
         let (spam_tx_send, spam_tx_recv) = make_channel!([u8; 20], 32);
         let (semaphore_send, semaphore_recv) = make_channel!(u8, 3);
 
-        let mut timer: timer::Counter<TIM2, 1000000> = cx.device.TIM2.counter(&clocks);
-        //.start_count_down(10_u32.millis());
-        timer.listen(timer::Event::Update);
-        timer.start(10_u32.millis()).unwrap();
-
         Mono::start(cx.core.SYST, clocks.sysclk().to_Hz());
         spam_queuer::spawn(spam_tx_recv, semaphore_send).ok();
         spam_sender::spawn(spam_tx_send.clone()).ok();
+        timer_isr::spawn().ok();
 
         (
             Shared {},
             Local {
-                timer,
+                // timer,
                 semaphore_recv,
             },
         )
     }
 
-    #[task(priority = 13, binds = TIM2, local=[timer, semaphore_recv])]
-    fn timer_isr(cx: timer_isr::Context) {
-        let randomness = (Mono::now().duration_since_epoch().ticks() & 0b111111) as u32;
-        cx.local.timer.cancel().ok();
+    #[task(priority = 4, local=[semaphore_recv])]
+    async fn timer_isr(cx: timer_isr::Context) {
+        loop {
+            let randomness = (Mono::now().duration_since_epoch().ticks() & 0b1) as u64;
 
-        // set the timer "randomly"
-        cx.local
-            .timer
-            .start(fugit::ExtU32::micros(100 + randomness))
-            .unwrap();
-        // clear a semaphore slot
-        cx.local.semaphore_recv.try_recv().ok();
+            // set the timer "randomly"
+            Mono::delay((1 + randomness).millis()).await;
+
+            // clear a semaphore slot
+            cx.local.semaphore_recv.try_recv().ok();
+        }
     }
 
     // Tasks
-    #[task(priority = 6)]
+    #[task(priority = 2)]
     async fn spam_sender(_cx: spam_sender::Context, mut outbound_queue: MsgOut) {
         loop {
             for i in 0u8..255 {
@@ -97,7 +93,7 @@ mod app {
         }
     }
 
-    #[task(priority = 4)]
+    #[task(priority = 1)]
     async fn spam_queuer(
         _cx: spam_queuer::Context,
         mut outbound_queue: MsgIn,
@@ -105,8 +101,8 @@ mod app {
     ) {
         while let Ok(msg) = outbound_queue.recv().await {
             // we enforce a timeout here so the outbound message handler won't hang if the timer irq never clears enough
-            defmt::info!("Received a message: {}", msg[0]);
-            Mono::timeout_after(4_u64.millis(), semaphore_send.send(0u8))
+            defmt::println!("Received a message: {}", msg[0]);
+            Mono::timeout_after(4u64.millis(), semaphore_send.send(0u8))
                 .await
                 .ok();
         }

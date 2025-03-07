@@ -15,7 +15,7 @@ fugit = { version = "0.3.6" }
 rtic = { version = "2.1.2", features = ["thumbv7-backend"] }
 rtic-macros = { version = "2.1.2", features = ["cortex-m-basepri"] }
 rtic-sync = { version = "1.3", features = ["defmt-03"]}
-rtic-time = { version = "1.3.0", features = []}
+rtic-time = { version = "2.0.0", features = []}
 rtic-monotonics = { version = "2", features = ["cortex-m-systick", "systick-64bit"] }
 cortex-m = { version = "0.7.7", features = ["critical-section-single-core", "inline-asm"]}
 
