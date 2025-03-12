@@ -106,9 +106,11 @@ mod app {
         while let Ok(msg) = outbound_queue.recv().await {
             // we enforce a timeout here so the outbound message handler won't hang if the timer irq never clears enough
             defmt::info!("Received a message: {}", msg[0]);
+            defmt::println!("Before mono");
             Mono::timeout_after(4_u64.millis(), semaphore_send.send(0u8))
                 .await
                 .ok();
+            defmt::println!("After mono");
         }
     }
 
