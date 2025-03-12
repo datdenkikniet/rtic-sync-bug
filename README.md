@@ -25,3 +25,5 @@ assertion failed: !self.0.access(cs).freeq.is_empty()
 ```
 
 it may take up to a minute to occur, but it will typically happen within 30 seconds.
+
+RustC version: rustc 1.85.0 (4d91de4e4 2025-02-17)
