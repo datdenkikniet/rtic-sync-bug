@@ -17,7 +17,7 @@ use stm32f7xx_hal::prelude::*;
 #[app(device = pac, peripherals = true, dispatchers = [RTC_WKUP, USART1, USART2, I2C1_ER, I2C1_EV])]
 mod app {
     use stm32f7xx_hal::{
-        pac::TIM2,
+        pac::TIM4,
         rcc::{HSEClock, HSEClockMode},
         timer,
     };
@@ -36,7 +36,7 @@ mod app {
 
     #[local]
     pub struct Local {
-        pub timer: timer::Counter<TIM2, 1000000>,
+        pub timer: timer::Counter<TIM4, 1000000>,
         pub semaphore_recv: SemaphoreRecv,
     }
 
@@ -45,8 +45,8 @@ mod app {
         let rcc = cx.device.RCC.constrain();
         let clocks = rcc
             .cfgr
-            .sysclk(96u32.MHz())
-            .hclk(96u32.MHz())
+            .sysclk(100u32.MHz())
+            .hclk(100u32.MHz())
             .hse(HSEClock::new(8.MHz(), HSEClockMode::Bypass))
             .freeze();
 
@@ -54,7 +54,7 @@ mod app {
         let (spam_tx_send, spam_tx_recv) = make_channel!([u8; 20], 32);
         let (semaphore_send, semaphore_recv) = make_channel!(u8, 3);
 
-        let mut timer: timer::Counter<TIM2, 1000000> = cx.device.TIM2.counter(&clocks);
+        let mut timer: timer::Counter<TIM4, 1000000> = cx.device.TIM4.counter(&clocks);
         //.start_count_down(10_u32.millis());
         timer.listen(timer::Event::Update);
         timer.start(10_u32.millis()).unwrap();
@@ -72,7 +72,7 @@ mod app {
         )
     }
 
-    #[task(priority = 13, binds = TIM2, local=[timer, semaphore_recv])]
+    #[task(priority = 13, binds = TIM4, local=[timer, semaphore_recv])]
     fn timer_isr(cx: timer_isr::Context) {
         let randomness = (Mono::now().duration_since_epoch().ticks() & 0b111111) as u32;
         cx.local.timer.cancel().ok();
